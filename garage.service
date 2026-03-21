@@ -1,0 +1,18 @@
+[Unit]
+Description=Garage Door Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi
+ExecStartPre=/bin/sleep 5
+ExecStart=/usr/bin/python3 /home/pi/garage_server.py
+Restart=always
+RestartSec=5
+Environment=SECRET_TOKEN=myGarage_92kL_secure
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
