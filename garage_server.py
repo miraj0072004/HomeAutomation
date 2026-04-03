@@ -1,12 +1,19 @@
 from flask import Flask, jsonify, request
+import os
 import RPi.GPIO as GPIO
 import time
+import logging
 
 app = Flask(__name__)
 
+logging.basicConfig(level=logging.INFO)
+
 RELAY_PIN = 17
 COOLDOWN_SECONDS = 180
-SECRET_TOKEN = "myGarage_92kL_secure"  # change this
+SECRET_TOKEN = os.environ.get("SECRET_TOKEN")
+
+if not SECRET_TOKEN:
+    raise RuntimeError("SECRET_TOKEN environment variable is not set")
 
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(RELAY_PIN, GPIO.OUT)
@@ -27,8 +34,8 @@ def trigger():
 
     token = request.args.get("token")
 
-    # Check token
     if token != SECRET_TOKEN:
+        app.logger.warning("Unauthorized trigger attempt")
         return (
             jsonify(
                 {
@@ -42,8 +49,8 @@ def trigger():
     now = time.time()
     elapsed = now - last_trigger_time
 
-    # Cooldown check
     if elapsed < COOLDOWN_SECONDS:
+        app.logger.info("Trigger blocked by cooldown")
         return (
             jsonify(
                 {
@@ -57,6 +64,7 @@ def trigger():
 
     pulse_relay()
     last_trigger_time = now
+    app.logger.info("Garage triggered successfully")
 
     return jsonify(
         {
