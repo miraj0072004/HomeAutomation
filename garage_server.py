@@ -9,15 +9,15 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
 RELAY_PIN = 17
-COOLDOWN_SECONDS = 180
+COOLDOWN_SECONDS = 10
 SECRET_TOKEN = os.environ.get("SECRET_TOKEN")
 
 if not SECRET_TOKEN:
     raise RuntimeError("SECRET_TOKEN environment variable is not set")
 
+GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
-GPIO.setup(RELAY_PIN, GPIO.OUT)
-GPIO.output(RELAY_PIN, GPIO.HIGH)
+GPIO.setup(RELAY_PIN, GPIO.OUT, initial=GPIO.HIGH)
 
 last_trigger_time = 0.0
 
@@ -80,4 +80,4 @@ def health():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=False)
