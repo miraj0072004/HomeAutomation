@@ -1,0 +1,79 @@
+command_line:
+  - sensor:
+      name: Cardinia Bin Collections
+      unique_id: cardinia_bin_collections
+      command: 'python3 /config/scripts/cardinia_bins.py --address "22 dragomir" --format home-assistant'
+      command_timeout: 30
+      scan_interval: 21600
+      value_template: "{{ value_json.status }}"
+      json_attributes:
+        - address
+        - matched_address
+        - latitude
+        - longitude
+        - zone_id
+        - zone_note
+        - today
+        - tomorrow
+        - next_rubbish_date
+        - next_recycling_date
+        - next_green_waste_date
+        - tomorrow_collections
+        - tomorrow_collection_labels
+        - message
+        - source
+        - updated_at
+
+automation:
+  - id: cardinia_bin_collection_reminder
+    alias: Cardinia bin collection reminder
+    mode: single
+    trigger:
+      - platform: time
+        at: "10:00:00"
+      - platform: time
+        at: "19:00:00"
+    condition:
+      - condition: time
+        weekday:
+          - sun
+    variables:
+      bin_sensor: sensor.cardinia_bin_collections
+      status: "{{ states(bin_sensor) }}"
+      labels: "{{ state_attr(bin_sensor, 'tomorrow_collection_labels') or [] }}"
+      next_rubbish: "{{ state_attr(bin_sensor, 'next_rubbish_date') }}"
+      next_recycling: "{{ state_attr(bin_sensor, 'next_recycling_date') }}"
+      next_green_waste: "{{ state_attr(bin_sensor, 'next_green_waste_date') }}"
+      updated_at: "{{ state_attr(bin_sensor, 'updated_at') }}"
+      error_message: "{{ state_attr(bin_sensor, 'message') or 'Cardinia bin lookup failed.' }}"
+    action:
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ status == 'ok' and labels | count > 0 }}"
+            sequence:
+              - service: notify.mobile_app_mirajs_iphone
+                data:
+                  title: Bin collection tomorrow
+                  message: >-
+                    Put out {{ labels | join(', ') }} for collection tomorrow.
+          - conditions:
+              - condition: template
+                value_template: "{{ status != 'ok' }}"
+            sequence:
+              - service: notify.mobile_app_mirajs_iphone
+                data:
+                  title: Bin lookup needs attention
+                  message: >-
+                    {{ error_message }} I did not guess which bins are due.
+
+  - id: cardinia_bin_collection_startup_refresh
+    alias: Cardinia bin collection startup refresh
+    mode: single
+    trigger:
+      - platform: homeassistant
+        event: start
+    action:
+      - service: homeassistant.update_entity
+        target:
+          entity_id: sensor.cardinia_bin_collections

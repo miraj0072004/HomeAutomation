@@ -13,3 +13,8 @@ rest_command:
   trigger_garage:
     url: "http://100.72.98.73:5000/trigger?token=myGarage_92kL_secure"
     method: GET
+
+input_boolean:
+  actron_manual_override:
+    name: Actron Manual Override
+    icon: mdi:hand-back-right

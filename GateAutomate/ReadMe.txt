@@ -1,3 +1,3 @@
 To enter the pi : ssh pi@raspberrypi.local 
-To deploy : .\deploy.ps1
+To deploy from PC to PI : .\deploy.ps1
 
