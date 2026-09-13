@@ -18,8 +18,13 @@ command_line:
         - next_rubbish_date
         - next_recycling_date
         - next_green_waste_date
+        - next_collection_date
+        - next_collection_prefix
+        - next_collection_lines
+        - next_collection_message
         - tomorrow_collections
         - tomorrow_collection_labels
+        - tomorrow_collection_lines
         - message
         - source
         - updated_at
@@ -38,10 +43,7 @@ script:
           bin_sensor: sensor.cardinia_bin_collections
           status: "{{ states(bin_sensor) }}"
           labels: "{{ state_attr(bin_sensor, 'tomorrow_collection_labels') or [] }}"
-          next_rubbish: "{{ state_attr(bin_sensor, 'next_rubbish_date') }}"
-          next_recycling: "{{ state_attr(bin_sensor, 'next_recycling_date') }}"
-          next_green_waste: "{{ state_attr(bin_sensor, 'next_green_waste_date') }}"
-          updated_at: "{{ state_attr(bin_sensor, 'updated_at') }}"
+          bin_message: "{{ state_attr(bin_sensor, 'next_collection_message') or state_attr(bin_sensor, 'message') }}"
           error_message: "{{ state_attr(bin_sensor, 'message') or 'Cardinia bin lookup failed.' }}"
       - choose:
           - conditions:
@@ -51,10 +53,7 @@ script:
               - service: notify.mobile_app_mirajs_iphone
                 data:
                   title: Bin status checked
-                  message: >-
-                    Tomorrow: {{ labels | join(', ') if labels | count > 0 else 'no bins' }}.
-                    Next dates: rubbish {{ next_rubbish }}, recycling {{ next_recycling }},
-                    green waste {{ next_green_waste }}.
+                  message: "{{ bin_message }}"
         default:
           - service: notify.mobile_app_mirajs_iphone
             data:
@@ -79,10 +78,7 @@ automation:
       bin_sensor: sensor.cardinia_bin_collections
       status: "{{ states(bin_sensor) }}"
       labels: "{{ state_attr(bin_sensor, 'tomorrow_collection_labels') or [] }}"
-      next_rubbish: "{{ state_attr(bin_sensor, 'next_rubbish_date') }}"
-      next_recycling: "{{ state_attr(bin_sensor, 'next_recycling_date') }}"
-      next_green_waste: "{{ state_attr(bin_sensor, 'next_green_waste_date') }}"
-      updated_at: "{{ state_attr(bin_sensor, 'updated_at') }}"
+      bin_message: "{{ state_attr(bin_sensor, 'next_collection_message') or state_attr(bin_sensor, 'message') }}"
       error_message: "{{ state_attr(bin_sensor, 'message') or 'Cardinia bin lookup failed.' }}"
     action:
       - choose:
@@ -93,8 +89,7 @@ automation:
               - service: notify.mobile_app_mirajs_iphone
                 data:
                   title: Bin collection tomorrow
-                  message: >-
-                    Put out {{ labels | join(', ') }} for collection tomorrow.
+                  message: "{{ bin_message }}"
           - conditions:
               - condition: template
                 value_template: "{{ status != 'ok' }}"

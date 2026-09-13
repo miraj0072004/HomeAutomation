@@ -23,6 +23,11 @@ WASTE_URL = (
     "https://services3.arcgis.com/TJxZpUnYIJOvcYwE/arcgis/rest/services/"
     "Waste_Collection_Zones/FeatureServer/0/query"
 )
+BIN_DISPLAY = {
+    "rubbish": "Red Bin - Rubbish",
+    "recycling": "Yellow Bin - Recycling",
+    "green_waste": "Green Bin - Organic Waste",
+}
 try:
     TIMEZONE = ZoneInfo("Australia/Melbourne")
 except ZoneInfoNotFoundError:
@@ -158,6 +163,14 @@ def next_collection(start: str, interval_weeks: int, today: date) -> date | None
     return start_date + timedelta(days=intervals * interval_days)
 
 
+def collection_prefix(collection_date: date, today: date) -> str:
+    if collection_date == today:
+        return f"Today ({collection_date.strftime('%A')})"
+    if collection_date == today + timedelta(days=1):
+        return f"Tomorrow ({collection_date.strftime('%A')})"
+    return f"Next {collection_date.strftime('%A')}"
+
+
 def build_payload(address: str, today: date, timeout: int) -> dict[str, Any]:
     resolved = resolve_address(address, timeout)
     zone = fetch_waste_zone(resolved["longitude"], resolved["latitude"], timeout)
@@ -165,12 +178,14 @@ def build_payload(address: str, today: date, timeout: int) -> dict[str, Any]:
     bins = {
         "rubbish": {
             "label": "Rubbish",
+            "display": BIN_DISPLAY["rubbish"],
             "day": zone.get("rub_day"),
             "weeks": zone.get("rub_weeks"),
             "start": zone.get("rub_start"),
         },
         "recycling": {
             "label": "Recycling",
+            "display": BIN_DISPLAY["recycling"],
             "day": zone.get("rec_day"),
             "weeks": zone.get("rec_weeks"),
             "start": zone.get("rec_start"),
@@ -178,6 +193,7 @@ def build_payload(address: str, today: date, timeout: int) -> dict[str, Any]:
         },
         "green_waste": {
             "label": "Green waste",
+            "display": BIN_DISPLAY["green_waste"],
             "day": zone.get("grn_day"),
             "weeks": zone.get("grn_weeks"),
             "start": zone.get("grn_start"),
@@ -188,19 +204,32 @@ def build_payload(address: str, today: date, timeout: int) -> dict[str, Any]:
     tomorrow = today + timedelta(days=1)
     tomorrow_collections: list[str] = []
     next_dates: dict[str, str | None] = {}
+    dated_collections: list[tuple[date, str]] = []
 
     for key, item in bins.items():
         next_date = next_collection(str(item.get("start") or ""), int(item.get("weeks") or 0), today)
         next_dates[key] = next_date.isoformat() if next_date else None
         item["next_date"] = next_dates[key]
+        if next_date:
+            dated_collections.append((next_date, key))
         if next_date == tomorrow:
             tomorrow_collections.append(key)
 
     tomorrow_labels = [bins[key]["label"] for key in tomorrow_collections]
-    message = (
-        f"Put out: {', '.join(tomorrow_labels)}."
-        if tomorrow_labels
-        else "No Cardinia bin collection due tomorrow."
+    tomorrow_display_lines = [bins[key]["display"] for key in tomorrow_collections]
+    next_collection_date = min((item[0] for item in dated_collections), default=None)
+    next_collection_keys = [
+        key for collection_date, key in dated_collections if collection_date == next_collection_date
+    ]
+    next_collection_lines = [bins[key]["display"] for key in next_collection_keys]
+    next_collection_prefix = (
+        collection_prefix(next_collection_date, today) if next_collection_date else "No collection found"
+    )
+    next_collection_message = (
+        f"{next_collection_prefix} : {next_collection_date.isoformat()}:\n"
+        + "\n".join(f" {line}" for line in next_collection_lines)
+        if next_collection_date
+        else "No Cardinia bin collection date found."
     )
 
     return {
@@ -214,9 +243,14 @@ def build_payload(address: str, today: date, timeout: int) -> dict[str, Any]:
         "next_rubbish_date": next_dates["rubbish"],
         "next_recycling_date": next_dates["recycling"],
         "next_green_waste_date": next_dates["green_waste"],
+        "next_collection_date": next_collection_date.isoformat() if next_collection_date else None,
+        "next_collection_prefix": next_collection_prefix,
+        "next_collection_lines": next_collection_lines,
+        "next_collection_message": next_collection_message,
         "tomorrow_collections": tomorrow_collections,
         "tomorrow_collection_labels": tomorrow_labels,
-        "message": message,
+        "tomorrow_collection_lines": tomorrow_display_lines,
+        "message": next_collection_message,
         "bins": bins,
         "source": WASTE_URL,
         "updated_at": now_local().isoformat(timespec="seconds"),
