@@ -21,6 +21,8 @@ command_line:
         - next_collection_date
         - next_collection_prefix
         - next_collection_lines
+        - next_collection_title
+        - next_collection_body
         - next_collection_message
         - tomorrow_collections
         - tomorrow_collection_labels
@@ -43,7 +45,8 @@ script:
           bin_sensor: sensor.cardinia_bin_collections
           status: "{{ states(bin_sensor) }}"
           labels: "{{ state_attr(bin_sensor, 'tomorrow_collection_labels') or [] }}"
-          bin_message: "{{ state_attr(bin_sensor, 'next_collection_message') or state_attr(bin_sensor, 'message') }}"
+          bin_title: "{{ state_attr(bin_sensor, 'next_collection_title') or 'Bin status checked' }}"
+          bin_message: "{{ state_attr(bin_sensor, 'next_collection_body') or state_attr(bin_sensor, 'message') }}"
           error_message: "{{ state_attr(bin_sensor, 'message') or 'Cardinia bin lookup failed.' }}"
       - choose:
           - conditions:
@@ -52,7 +55,7 @@ script:
             sequence:
               - service: notify.mobile_app_mirajs_iphone
                 data:
-                  title: Bin status checked
+                  title: "{{ bin_title }}"
                   message: "{{ bin_message }}"
         default:
           - service: notify.mobile_app_mirajs_iphone
@@ -78,7 +81,8 @@ automation:
       bin_sensor: sensor.cardinia_bin_collections
       status: "{{ states(bin_sensor) }}"
       labels: "{{ state_attr(bin_sensor, 'tomorrow_collection_labels') or [] }}"
-      bin_message: "{{ state_attr(bin_sensor, 'next_collection_message') or state_attr(bin_sensor, 'message') }}"
+      bin_title: "{{ state_attr(bin_sensor, 'next_collection_title') or 'Bin collection tomorrow' }}"
+      bin_message: "{{ state_attr(bin_sensor, 'next_collection_body') or state_attr(bin_sensor, 'message') }}"
       error_message: "{{ state_attr(bin_sensor, 'message') or 'Cardinia bin lookup failed.' }}"
     action:
       - choose:
@@ -88,7 +92,7 @@ automation:
             sequence:
               - service: notify.mobile_app_mirajs_iphone
                 data:
-                  title: Bin collection tomorrow
+                  title: "{{ bin_title }}"
                   message: "{{ bin_message }}"
           - conditions:
               - condition: template

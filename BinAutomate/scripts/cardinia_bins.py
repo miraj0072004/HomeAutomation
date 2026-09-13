@@ -23,10 +23,19 @@ WASTE_URL = (
     "https://services3.arcgis.com/TJxZpUnYIJOvcYwE/arcgis/rest/services/"
     "Waste_Collection_Zones/FeatureServer/0/query"
 )
-BIN_DISPLAY = {
-    "rubbish": "Red Bin - Rubbish",
-    "recycling": "Yellow Bin - Recycling",
-    "green_waste": "Green Bin - Organic Waste",
+BIN_DETAILS = {
+    "rubbish": {
+        "colour": "Red",
+        "service": "Rubbish",
+    },
+    "recycling": {
+        "colour": "Yellow",
+        "service": "Recycling",
+    },
+    "green_waste": {
+        "colour": "Green",
+        "service": "Organic Waste",
+    },
 }
 try:
     TIMEZONE = ZoneInfo("Australia/Melbourne")
@@ -171,6 +180,28 @@ def collection_prefix(collection_date: date, today: date) -> str:
     return f"Next {collection_date.strftime('%A')}"
 
 
+def bin_display(key: str) -> str:
+    details = BIN_DETAILS[key]
+    return f"{details['colour']} Bin - {details['service']}"
+
+
+def bin_body_line(key: str) -> str:
+    details = BIN_DETAILS[key]
+    return f"{details['colour']}: {details['service']}"
+
+
+def bin_title_part(key: str) -> str:
+    return BIN_DETAILS[key]["colour"]
+
+
+def join_title_parts(values: list[str]) -> str:
+    if not values:
+        return "No bins"
+    if len(values) == 1:
+        return f"{values[0]} bin"
+    return f"{' + '.join(values)} bins"
+
+
 def build_payload(address: str, today: date, timeout: int) -> dict[str, Any]:
     resolved = resolve_address(address, timeout)
     zone = fetch_waste_zone(resolved["longitude"], resolved["latitude"], timeout)
@@ -178,14 +209,14 @@ def build_payload(address: str, today: date, timeout: int) -> dict[str, Any]:
     bins = {
         "rubbish": {
             "label": "Rubbish",
-            "display": BIN_DISPLAY["rubbish"],
+            "display": bin_display("rubbish"),
             "day": zone.get("rub_day"),
             "weeks": zone.get("rub_weeks"),
             "start": zone.get("rub_start"),
         },
         "recycling": {
             "label": "Recycling",
-            "display": BIN_DISPLAY["recycling"],
+            "display": bin_display("recycling"),
             "day": zone.get("rec_day"),
             "weeks": zone.get("rec_weeks"),
             "start": zone.get("rec_start"),
@@ -193,7 +224,7 @@ def build_payload(address: str, today: date, timeout: int) -> dict[str, Any]:
         },
         "green_waste": {
             "label": "Green waste",
-            "display": BIN_DISPLAY["green_waste"],
+            "display": bin_display("green_waste"),
             "day": zone.get("grn_day"),
             "weeks": zone.get("grn_weeks"),
             "start": zone.get("grn_start"),
@@ -225,6 +256,18 @@ def build_payload(address: str, today: date, timeout: int) -> dict[str, Any]:
     next_collection_prefix = (
         collection_prefix(next_collection_date, today) if next_collection_date else "No collection found"
     )
+    next_collection_title = (
+        f"{next_collection_prefix}: "
+        f"{join_title_parts([bin_title_part(key) for key in next_collection_keys])}"
+        if next_collection_date
+        else "Bin status unavailable"
+    )
+    next_collection_body = (
+        f"{next_collection_date.strftime('%A')} {next_collection_date.isoformat()}\n"
+        + "\n".join(bin_body_line(key) for key in next_collection_keys)
+        if next_collection_date
+        else "No Cardinia bin collection date found."
+    )
     next_collection_message = (
         f"{next_collection_prefix} : {next_collection_date.isoformat()}:\n"
         + "\n".join(f" {line}" for line in next_collection_lines)
@@ -246,6 +289,8 @@ def build_payload(address: str, today: date, timeout: int) -> dict[str, Any]:
         "next_collection_date": next_collection_date.isoformat() if next_collection_date else None,
         "next_collection_prefix": next_collection_prefix,
         "next_collection_lines": next_collection_lines,
+        "next_collection_title": next_collection_title,
+        "next_collection_body": next_collection_body,
         "next_collection_message": next_collection_message,
         "tomorrow_collections": tomorrow_collections,
         "tomorrow_collection_labels": tomorrow_labels,
